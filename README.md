@@ -1,7 +1,7 @@
 # CLIProxyAPI Quota - SwiftBar Plugin
 
 A [SwiftBar](https://swiftbar.app/) plugin that displays **Codex** and **Antigravity**
-quota usage from your CLIProxyAPI instance in the macOS menu bar.
+quota usage from your [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI) instance in the macOS menu bar.
 
 ## Setup
 
@@ -16,14 +16,15 @@ brew install swiftbar
 Symlink or copy the script to your SwiftBar plugins directory:
 
 ```bash
-ln -s path/to/quota.5m.py path/to/SwiftBar/quota.5m.py
+git clone https://github.com/LoveEatCandy/CLIProxyAPI-quota-bar.git
+cp CLIProxyAPI-quota-bar/quota.5m.py path/to/SwiftBar/quota.5m.py
 ```
 
 The `5m` in the filename means SwiftBar refreshes every **5 minutes**.
 
 ### 3. Configure Environment Variables
 
-Write `.env` file in the same directory as the script:
+Write `.env` file in the same directory(`path/to/SwiftBar/.env`):
 
 ```
 CPA_BASE_URL="https://xxx"                # Your CLIProxyAPI server
