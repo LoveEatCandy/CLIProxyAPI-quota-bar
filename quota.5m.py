@@ -27,6 +27,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import time
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
@@ -224,28 +225,40 @@ def _make_request(
     url: str,
     method: str = "GET",
     data: dict[str, Any] | None = None,
+    max_retries: int = 3,
 ) -> dict[str, Any]:
     """Make an HTTP request to the Management API.
 
     :param url: Full URL to request.
     :param method: HTTP method (GET, POST, etc.).
     :param data: JSON body for POST/PUT requests.
+    :param max_retries: Maximum number of attempts (default 3).
     :returns: Parsed JSON response.
-    :raises RuntimeError: On HTTP or network errors.
+    :raises RuntimeError: On HTTP or network errors after all retries.
     """
     body = json.dumps(data).encode("utf-8") if data else None
-    req = urllib.request.Request(url, data=body, headers=HTTP_HEADERS, method=method)
+    last_exc: Exception | None = None
 
-    try:
-        with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT) as resp:
-            return json.loads(resp.read().decode("utf-8"))
-    except urllib.error.HTTPError as exc:
-        error_body = exc.read().decode("utf-8", errors="replace")
-        msg = f"HTTP {exc.code}: {error_body}"
-        raise RuntimeError(msg) from exc
-    except urllib.error.URLError as exc:
-        msg = f"Connection error: {exc.reason}"
-        raise RuntimeError(msg) from exc
+    for attempt in range(max_retries):
+        req = urllib.request.Request(url, data=body, headers=HTTP_HEADERS, method=method)
+        try:
+            with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            code = exc.code
+            error_body = exc.read().decode("utf-8", errors="replace")
+            # Don't retry client errors (4xx) except 429
+            if 400 <= code < 500 and code != 429:
+                msg = f"HTTP {code}: {error_body}"
+                raise RuntimeError(msg) from exc
+            last_exc = RuntimeError(f"HTTP {code}: {error_body}")
+        except urllib.error.URLError as exc:
+            last_exc = RuntimeError(f"Connection error: {exc.reason}")
+
+        if attempt < max_retries - 1:
+            time.sleep(1 * (attempt + 1))
+
+    raise last_exc  # type: ignore[misc]
 
 
 def api_call(payload: dict[str, Any]) -> dict[str, Any]:
@@ -536,7 +549,7 @@ def print_codex_section(quotas: list[CodexQuota]) -> None:
             continue
 
         # Status
-        status_icon = "🔴" if q.limit_reached else "�"
+        status_icon = "🔴" if q.limit_reached else "🤖"
         plan = q.plan_type.upper() if q.plan_type else "?"
 
         # Primary window (5-hour)
